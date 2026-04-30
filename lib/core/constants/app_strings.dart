@@ -1,0 +1,43 @@
+class AppStrings {
+  AppStrings._();
+
+  static const String appName = 'יומן תזכורות';
+  static const String reminders = 'תזכורות';
+  static const String calendar = 'לוח שנה';
+  static const String categories = 'קטגוריות';
+  static const String settings = 'הגדרות';
+  static const String addReminder = 'הוסף תזכורת';
+  static const String editReminder = 'ערוך תזכורת';
+  static const String deleteReminder = 'מחק תזכורת';
+  static const String deleteConfirm = 'האם למחוק תזכורת זו?';
+  static const String yes = 'כן';
+  static const String no = 'לא';
+  static const String cancel = 'ביטול';
+  static const String save = 'שמור';
+  static const String title = 'כותרת';
+  static const String description = 'תיאור';
+  static const String date = 'תאריך';
+  static const String time = 'שעה';
+  static const String category = 'קטגוריה';
+  static const String recurrence = 'חזרה';
+  static const String once = 'חד-פעמי';
+  static const String daily = 'יומי';
+  static const String monthly = 'חודשי';
+  static const String yearly = 'שנתי';
+  static const String snooze = 'נודניק';
+  static const String snooze5 = '5 דקות';
+  static const String snooze10 = '10 דקות';
+  static const String snooze15 = '15 דקות';
+  static const String dismiss = 'סגור';
+  static const String sound = 'צליל';
+  static const String chooseSound = 'בחר צליל';
+  static const String noReminders = 'אין תזכורות';
+  static const String addCategory = 'הוסף קטגוריה';
+  static const String categoryName = 'שם קטגוריה';
+  static const String color = 'צבע';
+  static const String today = 'היום';
+  static const String tomorrow = 'מחר';
+  static const String monthView = 'תצוגת חודש';
+  static const String weekView = 'תצוגת שבוע';
+  static const String dayView = 'תצוגת יום';
+}
