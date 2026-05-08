@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget colors (dark mode) — matches app's dark theme surface palette -->
+    <color name="widget_bg">#FF1E2F3F</color>
+    <color name="widget_accent">#5B9BD5</color>
+    <color name="widget_text_primary">#E8EFF5</color>
+    <color name="widget_text_secondary">#94A3B0</color>
+    <color name="widget_text_empty">#546E7A</color>
+    <color name="widget_divider">#2C3E50</color>
+</resources>

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mirit_reminders/core/constants/app_colors.dart';
 import 'package:mirit_reminders/core/constants/app_strings.dart';
 import 'package:mirit_reminders/features/reminders/presentation/screens/reminders_list_screen.dart';
 import 'package:mirit_reminders/features/calendar/presentation/screens/calendar_screen.dart';
 import 'package:mirit_reminders/features/categories/presentation/screens/categories_screen.dart';
-import 'package:mirit_reminders/core/navigation/placeholder_screens.dart';
+import 'package:mirit_reminders/features/settings/presentation/screens/settings_screen.dart';
+import 'package:mirit_reminders/features/statistics/presentation/screens/statistics_screen.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -20,13 +20,15 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   static const List<Widget> _screens = [
     RemindersListScreen(),
     CalendarScreen(),
+    StatisticsScreen(),
     CategoriesScreen(),
-    SettingsPlaceholderScreen(),
+    SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.of(context).size.width >= 600;
+    final colorScheme = Theme.of(context).colorScheme;
 
     if (wide) {
       return Scaffold(
@@ -36,9 +38,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               selectedIndex: _currentIndex,
               onDestinationSelected: (i) => setState(() => _currentIndex = i),
               labelType: NavigationRailLabelType.all,
-              selectedIconTheme: IconThemeData(color: AppColors.primary),
+              selectedIconTheme: IconThemeData(color: colorScheme.primary),
               selectedLabelTextStyle: TextStyle(
-                color: AppColors.primary,
+                color: colorScheme.primary,
                 fontWeight: FontWeight.w600,
               ),
               destinations: const [
@@ -51,6 +53,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   icon: Icon(Icons.calendar_month_outlined),
                   selectedIcon: Icon(Icons.calendar_month),
                   label: Text(AppStrings.calendar),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.bar_chart_outlined),
+                  selectedIcon: Icon(Icons.bar_chart),
+                  label: Text(AppStrings.statistics),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.category_outlined),
@@ -76,41 +83,53 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       );
     }
 
-    // Narrow: existing BottomNavigationBar layout
+    // Narrow: BottomNavigationBar with clamped text scale so labels fit at
+    // accessibility text sizes.
+    final mq = MediaQuery.of(context);
+    final clampedScale = mq.textScaler.clamp(maxScaleFactor: 1.2);
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.onSurfaceVariant,
-        backgroundColor: AppColors.surface,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            activeIcon: Icon(Icons.notifications),
-            label: AppStrings.reminders,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            activeIcon: Icon(Icons.calendar_month),
-            label: AppStrings.calendar,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.category_outlined),
-            activeIcon: Icon(Icons.category),
-            label: AppStrings.categories,
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: AppStrings.settings,
-          ),
-        ],
+      bottomNavigationBar: MediaQuery(
+        data: mq.copyWith(textScaler: clampedScale),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          selectedItemColor: colorScheme.primary,
+          unselectedItemColor: colorScheme.onSurfaceVariant,
+          backgroundColor: colorScheme.surface,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.notifications_outlined),
+              activeIcon: Icon(Icons.notifications),
+              label: AppStrings.reminders,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_month_outlined),
+              activeIcon: Icon(Icons.calendar_month),
+              label: AppStrings.calendar,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: AppStrings.statistics,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.category_outlined),
+              activeIcon: Icon(Icons.category),
+              label: AppStrings.categories,
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: AppStrings.settings,
+            ),
+          ],
+        ),
       ),
     );
   }

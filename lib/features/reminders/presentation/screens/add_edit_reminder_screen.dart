@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mirit_reminders/core/constants/app_colors.dart';
 import 'package:mirit_reminders/core/constants/app_strings.dart';
 import 'package:mirit_reminders/core/database/tables/reminders_table.dart';
+import 'package:mirit_reminders/core/widgets/haptics.dart';
+import 'package:mirit_reminders/core/widgets/month_year_picker_dialog.dart';
 import 'package:mirit_reminders/features/audio/sound_picker_widget.dart';
 import 'package:mirit_reminders/features/categories/presentation/providers/categories_provider.dart';
 import 'package:mirit_reminders/features/reminders/domain/entities/reminder.dart';
 import 'package:mirit_reminders/features/reminders/presentation/providers/reminders_provider.dart';
+import 'package:mirit_reminders/features/settings/presentation/providers/settings_provider.dart';
 
 class AddEditReminderScreen extends ConsumerStatefulWidget {
   final Reminder? reminder;
@@ -28,8 +30,12 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
   late RecurrenceType _recurrenceType;
   int? _categoryId;
   String? _soundPath;
+  bool _isSaving = false;
 
-  bool get _isEditMode => widget.reminder != null;
+  // Template-from-quick-add passes a Reminder with id=null. Treat it as
+  // a NEW reminder (so save calls add(), not update()) but pre-fill the form
+  // from the template via initState below.
+  bool get _isEditMode => widget.reminder?.id != null;
 
   @override
   void initState() {
@@ -57,6 +63,7 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
       );
       _recurrenceType = RecurrenceType.none;
       _categoryId = null;
+      _soundPath = ref.read(settingsProvider).defaultSoundPath;
     }
   }
 
@@ -68,11 +75,40 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
   }
 
   Future<void> _pickDate() async {
+    final firstDate = DateTime.now().subtract(const Duration(days: 1));
+    final initialDate =
+        _selectedDate.isBefore(firstDate) ? firstDate : _selectedDate;
+
+    // Step 1: month/year quick-pick dialog (so the user doesn't have to
+    // tap the < / > arrows in the date picker dozens of times).
+    final monthYear = await showDialog<DateTime>(
+      context: context,
+      builder: (ctx) => MonthYearPickerDialog(initial: initialDate),
+    );
+    if (monthYear == null || !mounted) return;
+
+    // Step 2: day picker, opened on the chosen month.
+    // Clamp the initial day to within the chosen month so showDatePicker
+    // doesn't reject it when month length differs (e.g. Feb 30 → Feb 28).
+    final lastDayOfMonth =
+        DateTime(monthYear.year, monthYear.month + 1, 0).day;
+    final desiredDay =
+        _selectedDate.day > lastDayOfMonth ? lastDayOfMonth : _selectedDate.day;
+    var jumpedInitial =
+        DateTime(monthYear.year, monthYear.month, desiredDay);
+    if (jumpedInitial.isBefore(firstDate)) jumpedInitial = firstDate;
+
+    if (!mounted) return;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2000),
+      initialDate: jumpedInitial,
+      firstDate: firstDate,
       lastDate: DateTime(2100),
+      locale: const Locale('he', 'IL'),
+      // Calendar-only — text-input mode shows a numeric keyboard without
+      // the period key the Hebrew dd.MM.yyyy format expects, which confuses
+      // users who try to type the date.
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -83,6 +119,14 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
     final picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime,
+      // Default mode shows the dial AND a keyboard toggle. Time inputs
+      // only need digits + colon, so the numeric keyboard works fine.
+      // (The keyboard restriction we hit on dates doesn't apply here.)
+      initialEntryMode: TimePickerEntryMode.dial,
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
     );
     if (picked != null) {
       setState(() => _selectedTime = picked);
@@ -90,6 +134,7 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
   }
 
   Future<void> _save() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
 
     final scheduledAt = DateTime(
@@ -99,6 +144,35 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
       _selectedTime.hour,
       _selectedTime.minute,
     );
+
+    // Reject past times for non-recurring reminders. Use a blocking dialog
+    // (not a snackbar) so the user — likely elderly — clearly sees why
+    // saving failed.
+    if (_recurrenceType == RecurrenceType.none &&
+        scheduledAt.isBefore(DateTime.now())) {
+      // Light tactile cue so the user notices the dialog appearing.
+      await Haptics.medium();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('לא ניתן לשמור'),
+          content: const Text(
+              'התאריך והשעה שבחרת כבר עברו. בחרי תאריך ושעה עתידיים.'),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('הבנתי'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Visible "tap registered" feedback for elderly users — short spinner
+    // before navigation pops, but does not block the save itself.
+    setState(() => _isSaving = true);
 
     final reminder = Reminder(
       id: widget.reminder?.id,
@@ -121,6 +195,10 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
       await notifier.add(reminder);
     }
 
+    // Hold the spinner briefly so the user sees confirmation of their tap.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    await Haptics.success();
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -130,28 +208,31 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text(AppStrings.deleteReminder),
         content: const Text(AppStrings.deleteConfirm),
+        // RTL convention: leading (right) is destructive/primary action,
+        // trailing (left) is cancel. For an elderly user the safe action
+        // (Cancel) is the prominent button.
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(AppStrings.cancel),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(AppStrings.deleteReminder),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.onPrimary,
-            ),
-            child: const Text(AppStrings.deleteReminder),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(AppStrings.cancel),
           ),
         ],
       ),
     );
 
     if (confirmed == true && mounted) {
+      await Haptics.delete();
       await ref
           .read(remindersNotifierProvider.notifier)
           .delete(widget.reminder!.id!);
-      if (mounted) Navigator.of(context).pop();
+      // Return the deleted reminder so the caller (reminders list screen)
+      // can show an UndoSnackbar with
+      // `onUndo: () => ref.read(remindersNotifierProvider.notifier).add(returned)`.
+      if (mounted) Navigator.of(context).pop(widget.reminder);
     }
   }
 
@@ -187,10 +268,18 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _isEditMode ? AppStrings.editReminder : AppStrings.addReminder,
+        // Hero target: matches `'reminder-card-${reminder.id ?? "new"}'` on
+        // the list-side card. Wrapping the title in a transparent Material
+        // gives a clean morph without breaking AppBar layout.
+        title: Hero(
+          tag: 'reminder-card-${widget.reminder?.id ?? "new"}',
+          child: Material(
+            type: MaterialType.transparency,
+            child: Text(
+              _isEditMode ? AppStrings.editReminder : AppStrings.addReminder,
+            ),
+          ),
         ),
-        leading: BackButton(onPressed: () => Navigator.of(context).pop()),
         actions: [
           if (_isEditMode)
             IconButton(
@@ -207,133 +296,152 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
             key: _formKey,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: [
-            // Title
-            TextFormField(
-              controller: _titleController,
-              textDirection: TextDirection.rtl,
-              decoration: const InputDecoration(
-                labelText: AppStrings.title,
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'נא למלא כותרת' : null,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 16),
-
-            // Description
-            TextFormField(
-              controller: _descriptionController,
-              textDirection: TextDirection.rtl,
-              decoration: const InputDecoration(
-                labelText: AppStrings.description,
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              maxLines: 3,
-              textInputAction: TextInputAction.newline,
-            ),
-            const SizedBox(height: 16),
-
-            // Date & Time row
-            Row(
               children: [
-                Expanded(
-                  child: _TappableField(
-                    label: AppStrings.date,
-                    value: _formatDate(_selectedDate),
-                    icon: Icons.calendar_today_outlined,
-                    onTap: _pickDate,
+                // Title
+                TextFormField(
+                  controller: _titleController,
+                  textDirection: TextDirection.rtl,
+                  decoration: const InputDecoration(
+                    labelText: AppStrings.title,
+                    border: OutlineInputBorder(),
                   ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'נא למלא כותרת' : null,
+                  textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TappableField(
-                    label: AppStrings.time,
-                    value: _formatTime(_selectedTime),
-                    icon: Icons.access_time_outlined,
-                    onTap: _pickTime,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Recurrence
-            DropdownButtonFormField<RecurrenceType>(
-              initialValue: _recurrenceType,
-              decoration: const InputDecoration(
-                labelText: AppStrings.recurrence,
-                border: OutlineInputBorder(),
-              ),
-              items: RecurrenceType.values
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t,
-                      child: Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: Text(_recurrenceLabel(t)),
+                // Description
+                TextFormField(
+                  controller: _descriptionController,
+                  textDirection: TextDirection.rtl,
+                  decoration: const InputDecoration(
+                    labelText: AppStrings.description,
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 3,
+                  textInputAction: TextInputAction.newline,
+                ),
+                const SizedBox(height: 16),
+
+                // Date & Time row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _TappableField(
+                        label: AppStrings.date,
+                        value: _formatDate(_selectedDate),
+                        icon: Icons.calendar_today_outlined,
+                        onTap: _pickDate,
                       ),
                     ),
-                  )
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _recurrenceType = v);
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Category
-            categoriesAsync.when(
-              data: (categories) => DropdownButtonFormField<int?>(
-                initialValue: _categoryId,
-                decoration: const InputDecoration(
-                  labelText: AppStrings.category,
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem<int?>(
-                    value: null,
-                    child: Align(
-                      alignment: AlignmentDirectional.centerEnd,
-                      child: Text('ללא קטגוריה'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _TappableField(
+                        label: AppStrings.time,
+                        value: _formatTime(_selectedTime),
+                        icon: Icons.access_time_outlined,
+                        onTap: _pickTime,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Recurrence
+                DropdownButtonFormField<RecurrenceType>(
+                  initialValue: _recurrenceType,
+                  decoration: const InputDecoration(
+                    labelText: AppStrings.recurrence,
+                    border: OutlineInputBorder(),
                   ),
-                  ...categories.map(
-                    (cat) => DropdownMenuItem<int?>(
-                      value: cat.id,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(cat.name),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 14,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              color: cat.color,
-                              shape: BoxShape.circle,
+                  items: RecurrenceType.values
+                      .map(
+                        (t) => DropdownMenuItem(
+                          value: t,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text(_recurrenceLabel(t)),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _recurrenceType = v);
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Category
+                categoriesAsync.when(
+                  data: (categories) => DropdownButtonFormField<int?>(
+                    initialValue: _categoryId,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.category,
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Text('ללא קטגוריה'),
+                        ),
+                      ),
+                      ...categories.map(
+                        (cat) => DropdownMenuItem<int?>(
+                          value: cat.id,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 14,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    color: cat.color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(cat.name),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _categoryId = v),
+                  ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: LinearProgressIndicator(),
+                  ),
+                  error: (_, __) => InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: AppStrings.category,
+                      border: const OutlineInputBorder(),
+                      errorText: 'שגיאה בטעינת קטגוריות',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'נסה שוב',
+                        onPressed: () =>
+                            ref.invalidate(allCategoriesProvider),
                       ),
                     ),
+                    child: const Text('נסי שוב מאוחר יותר'),
                   ),
-                ],
-                onChanged: (v) => setState(() => _categoryId = v),
-              ),
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 8),
+                ),
+                const SizedBox(height: 8),
 
-            // Sound picker
-            SoundPickerWidget(
-              currentSoundPath: _soundPath,
-              onSoundSelected: (path) => setState(() => _soundPath = path),
-            ),
-          ],
+                // Sound picker
+                SoundPickerWidget(
+                  currentSoundPath: _soundPath,
+                  onSoundSelected: (path) => setState(() => _soundPath = path),
+                ),
+              ],
             ),
           ),
         ),
@@ -345,18 +453,25 @@ class _AddEditReminderScreenState extends ConsumerState<AddEditReminderScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _save,
+              onPressed: _isSaving ? null : _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                AppStrings.save,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      AppStrings.save,
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
             ),
           ),
         ),
@@ -381,18 +496,22 @@ class _TappableField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          suffixIcon: Icon(icon, size: 20),
-        ),
-        child: Text(
-          value,
-          style: theme.textTheme.bodyLarge,
+    return Semantics(
+      button: true,
+      label: '$label, $value',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            suffixIcon: Icon(icon, size: 20),
+          ),
+          child: Text(
+            value,
+            style: theme.textTheme.bodyLarge,
+          ),
         ),
       ),
     );

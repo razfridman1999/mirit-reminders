@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:mirit_reminders/core/database/app_database.dart';
+import 'package:mirit_reminders/core/database/tables/reminders_table.dart';
 import 'package:mirit_reminders/features/reminders/domain/entities/reminder.dart';
 import 'package:mirit_reminders/features/reminders/domain/repositories/reminders_repository.dart';
 
@@ -18,6 +19,7 @@ class RemindersRepositoryImpl implements RemindersRepository {
       categoryId: data.categoryId,
       soundPath: data.soundPath,
       isActive: data.isActive,
+      completedAt: data.completedAt,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     );
@@ -32,6 +34,7 @@ class RemindersRepositoryImpl implements RemindersRepository {
       categoryId: Value(reminder.categoryId),
       soundPath: Value(reminder.soundPath),
       isActive: Value(reminder.isActive),
+      completedAt: Value(reminder.completedAt),
       updatedAt: Value(DateTime.now()),
     );
   }
@@ -45,11 +48,18 @@ class RemindersRepositoryImpl implements RemindersRepository {
 
   @override
   Stream<List<Reminder>> watchUpcoming() {
+    // Hide completed one-shots; recurring reminders stay even if their
+    // completedAt is set (it's a "last completion" stat marker, not a
+    // termination state).
     final query = _db.select(_db.remindersTable)
       ..where(
         (t) =>
             t.scheduledAt.isBiggerOrEqualValue(DateTime.now()) &
-            t.isActive.equals(true),
+            t.isActive.equals(true) &
+            (t.completedAt.isNull() |
+                t.recurrenceType.equalsValue(RecurrenceType.daily) |
+                t.recurrenceType.equalsValue(RecurrenceType.monthly) |
+                t.recurrenceType.equalsValue(RecurrenceType.yearly)),
       )
       ..orderBy([(t) => OrderingTerm.asc(t.scheduledAt)]);
     return query.watch().map((rows) => rows.map(_toEntity).toList());
@@ -95,6 +105,33 @@ class RemindersRepositoryImpl implements RemindersRepository {
     await (_db.update(_db.remindersTable)..where((t) => t.id.equals(id)))
         .write(RemindersTableCompanion(
       isActive: Value(isActive),
+      updatedAt: Value(DateTime.now()),
+    ));
+  }
+
+  @override
+  Future<void> markCompleted(int id, {DateTime? at}) async {
+    await (_db.update(_db.remindersTable)..where((t) => t.id.equals(id)))
+        .write(RemindersTableCompanion(
+      completedAt: Value(at ?? DateTime.now()),
+      updatedAt: Value(DateTime.now()),
+    ));
+  }
+
+  @override
+  Future<void> unmarkCompleted(int id) async {
+    await (_db.update(_db.remindersTable)..where((t) => t.id.equals(id)))
+        .write(RemindersTableCompanion(
+      completedAt: const Value(null),
+      updatedAt: Value(DateTime.now()),
+    ));
+  }
+
+  @override
+  Future<void> updateScheduledAt(int id, DateTime newScheduledAt) async {
+    await (_db.update(_db.remindersTable)..where((t) => t.id.equals(id)))
+        .write(RemindersTableCompanion(
+      scheduledAt: Value(newScheduledAt),
       updatedAt: Value(DateTime.now()),
     ));
   }

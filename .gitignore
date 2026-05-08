@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local distribution archives (do not commit build artifacts)
+/mirit_reminders_windows.zip
+*.zip

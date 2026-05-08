@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mirit_reminders/core/constants/app_colors.dart';
 import 'package:mirit_reminders/core/constants/app_strings.dart';
+import 'package:mirit_reminders/core/widgets/haptics.dart';
+import 'package:mirit_reminders/core/widgets/undo_snackbar.dart';
 import 'package:mirit_reminders/features/categories/domain/entities/category.dart';
 import 'package:mirit_reminders/features/categories/presentation/providers/categories_provider.dart';
 
@@ -16,25 +18,55 @@ class CategoriesScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(AppStrings.categories),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => const Center(child: Text('שגיאה בטעינת קטגוריות')),
+        error: (e, _) => _CategoriesErrorState(
+          onRetry: () => ref.invalidate(allCategoriesProvider),
+        ),
         data: (categories) {
           if (categories.isEmpty) {
-            return const Center(child: Text('אין קטגוריות'));
+            return const _CategoriesEmptyState();
           }
           return ListView.separated(
             itemCount: categories.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final category = categories[index];
-              return _CategoryTile(category: category);
+              final tile = _CategoryTile(category: category);
+              // Preset categories cannot be deleted, so they shouldn't
+              // be swipeable either.
+              if (category.isPreset || category.id == null) {
+                return tile;
+              }
+              return Dismissible(
+                key: ValueKey(category.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  alignment: AlignmentDirectional.centerStart,
+                  padding: const EdgeInsetsDirectional.only(start: 24),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                ),
+                confirmDismiss: (_) =>
+                    _CategoryTile.confirmDeleteDialog(context),
+                onDismissed: (_) => _CategoryTile.performDelete(
+                  context,
+                  ref,
+                  category,
+                ),
+                child: tile,
+              );
             },
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_categories',
+        tooltip: 'הוסף קטגוריה',
         onPressed: () => _showAddCategorySheet(context),
         child: const Icon(Icons.add),
       ),
@@ -71,37 +103,62 @@ class _CategoryTile extends ConsumerWidget {
           ? null
           : IconButton(
               icon: const Icon(Icons.delete_outline),
+              tooltip: 'מחק קטגוריה',
               onPressed: () => _confirmDelete(context, ref),
             ),
     );
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await confirmDeleteDialog(context);
+    if (confirmed == true && context.mounted) {
+      await performDelete(context, ref, category);
+    }
+  }
+
+  /// Shared confirmation dialog used by both the trash icon and the
+  /// swipe-to-dismiss `confirmDismiss` callback.
+  static Future<bool?> confirmDeleteDialog(BuildContext context) {
+    return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('מחק קטגוריה'),
         content: const Text('האם למחוק קטגוריה זו?'),
+        // RTL: destructive action on leading edge (right), Cancel on trailing
+        // (left). Cancel is the visually prominent button — safe for elderly.
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('מחק'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.cancel),
           ),
         ],
       ),
     );
+  }
 
-    if (confirmed == true && category.id != null) {
-      await ref.read(categoriesNotifierProvider.notifier).delete(category.id!);
-    }
+  /// Performs the actual delete and surfaces an undo snackbar so the user
+  /// can recover from accidental taps/swipes.
+  static Future<void> performDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Category category,
+  ) async {
+    if (category.id == null) return;
+    final notifier = ref.read(categoriesNotifierProvider.notifier);
+    await notifier.delete(category.id!);
+    await Haptics.delete();
+    if (!context.mounted) return;
+    UndoSnackbar.show(
+      context,
+      message: 'הקטגוריה נמחקה',
+      onUndo: () => ref
+          .read(categoriesNotifierProvider.notifier)
+          .add(category),
+    );
   }
 }
 
@@ -130,6 +187,24 @@ class _AddCategorySheetState extends State<_AddCategorySheet> {
     'school',
     'fitness_center',
     'shopping_cart',
+    'cake',
+    'celebration',
+    'card_giftcard',
+    'medical_services',
+    'medication',
+    'pets',
+    'restaurant',
+    'flight',
+    'directions_car',
+    'savings',
+    'event_note',
+    'alarm',
+    'phone',
+    'email',
+    'spa',
+    'local_florist',
+    'beach_access',
+    'book',
   ];
 
   static const Map<String, IconData> _iconMap = {
@@ -143,6 +218,24 @@ class _AddCategorySheetState extends State<_AddCategorySheet> {
     'school': Icons.school,
     'fitness_center': Icons.fitness_center,
     'shopping_cart': Icons.shopping_cart,
+    'cake': Icons.cake,
+    'celebration': Icons.celebration,
+    'card_giftcard': Icons.card_giftcard,
+    'medical_services': Icons.medical_services,
+    'medication': Icons.medication,
+    'pets': Icons.pets,
+    'restaurant': Icons.restaurant,
+    'flight': Icons.flight,
+    'directions_car': Icons.directions_car,
+    'savings': Icons.savings,
+    'event_note': Icons.event_note,
+    'alarm': Icons.alarm,
+    'phone': Icons.phone,
+    'email': Icons.email,
+    'spa': Icons.spa,
+    'local_florist': Icons.local_florist,
+    'beach_access': Icons.beach_access,
+    'book': Icons.menu_book,
   };
 
   @override
@@ -231,6 +324,7 @@ class _AddCategorySheetState extends State<_AddCategorySheet> {
     );
 
     await ref.read(categoriesNotifierProvider.notifier).add(category);
+    await Haptics.success();
 
     if (context.mounted) Navigator.of(context).pop();
   }
@@ -249,14 +343,21 @@ class _ColorPicker extends StatelessWidget {
       runSpacing: 10,
       children: AppColors.categoryColors.map((color) {
         final isSelected = color.toARGB32() == selected.toARGB32();
-        return GestureDetector(
+        return InkWell(
           onTap: () => onSelected(color),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundColor: color,
-            child: isSelected
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                : null,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: color,
+                child: isSelected
+                    ? const Icon(Icons.check, color: Colors.white, size: 20)
+                    : null,
+              ),
+            ),
           ),
         );
       }).toList(),
@@ -281,28 +382,104 @@ class _IconPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: iconNames.map((name) {
         final isSelected = name == selectedIconName;
-        return GestureDetector(
+        return InkWell(
           onTap: () => onSelected(name),
+          borderRadius: BorderRadius.circular(8),
           child: Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: isSelected ? selectedColor : AppColors.surfaceVariant,
+              color: isSelected
+                  ? selectedColor
+                  : colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               iconMap[name],
-              color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-              size: 22,
+              color: isSelected ? Colors.white : colorScheme.onSurfaceVariant,
+              size: 24,
             ),
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _CategoriesEmptyState extends StatelessWidget {
+  const _CategoriesEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.category_outlined,
+            size: 64,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'אין קטגוריות',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'לחץ + להוספת קטגוריה',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoriesErrorState extends StatelessWidget {
+  const _CategoriesErrorState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 56,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'שגיאה בטעינת קטגוריות',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('נסה שוב'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

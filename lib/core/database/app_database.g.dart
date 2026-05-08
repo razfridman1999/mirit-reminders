@@ -465,6 +465,17 @@ class $RemindersTableTable extends RemindersTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -499,6 +510,7 @@ class $RemindersTableTable extends RemindersTable
     categoryId,
     soundPath,
     isActive,
+    completedAt,
     createdAt,
     updatedAt,
   ];
@@ -563,6 +575,15 @@ class $RemindersTableTable extends RemindersTable
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -618,6 +639,10 @@ class $RemindersTableTable extends RemindersTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -650,6 +675,7 @@ class RemindersTableData extends DataClass
   final int? categoryId;
   final String? soundPath;
   final bool isActive;
+  final DateTime? completedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
   const RemindersTableData({
@@ -661,6 +687,7 @@ class RemindersTableData extends DataClass
     this.categoryId,
     this.soundPath,
     required this.isActive,
+    this.completedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -685,6 +712,9 @@ class RemindersTableData extends DataClass
       map['sound_path'] = Variable<String>(soundPath);
     }
     map['is_active'] = Variable<bool>(isActive);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -706,6 +736,9 @@ class RemindersTableData extends DataClass
           ? const Value.absent()
           : Value(soundPath),
       isActive: Value(isActive),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -727,6 +760,7 @@ class RemindersTableData extends DataClass
       categoryId: serializer.fromJson<int?>(json['categoryId']),
       soundPath: serializer.fromJson<String?>(json['soundPath']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -745,6 +779,7 @@ class RemindersTableData extends DataClass
       'categoryId': serializer.toJson<int?>(categoryId),
       'soundPath': serializer.toJson<String?>(soundPath),
       'isActive': serializer.toJson<bool>(isActive),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -759,6 +794,7 @@ class RemindersTableData extends DataClass
     Value<int?> categoryId = const Value.absent(),
     Value<String?> soundPath = const Value.absent(),
     bool? isActive,
+    Value<DateTime?> completedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => RemindersTableData(
@@ -770,6 +806,7 @@ class RemindersTableData extends DataClass
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     soundPath: soundPath.present ? soundPath.value : this.soundPath,
     isActive: isActive ?? this.isActive,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -791,6 +828,9 @@ class RemindersTableData extends DataClass
           : this.categoryId,
       soundPath: data.soundPath.present ? data.soundPath.value : this.soundPath,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -807,6 +847,7 @@ class RemindersTableData extends DataClass
           ..write('categoryId: $categoryId, ')
           ..write('soundPath: $soundPath, ')
           ..write('isActive: $isActive, ')
+          ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -823,6 +864,7 @@ class RemindersTableData extends DataClass
     categoryId,
     soundPath,
     isActive,
+    completedAt,
     createdAt,
     updatedAt,
   );
@@ -838,6 +880,7 @@ class RemindersTableData extends DataClass
           other.categoryId == this.categoryId &&
           other.soundPath == this.soundPath &&
           other.isActive == this.isActive &&
+          other.completedAt == this.completedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -851,6 +894,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
   final Value<int?> categoryId;
   final Value<String?> soundPath;
   final Value<bool> isActive;
+  final Value<DateTime?> completedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const RemindersTableCompanion({
@@ -862,6 +906,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
     this.categoryId = const Value.absent(),
     this.soundPath = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.completedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -874,6 +919,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
     this.categoryId = const Value.absent(),
     this.soundPath = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.completedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : title = Value(title),
@@ -888,6 +934,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
     Expression<int>? categoryId,
     Expression<String>? soundPath,
     Expression<bool>? isActive,
+    Expression<DateTime>? completedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -900,6 +947,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
       if (categoryId != null) 'category_id': categoryId,
       if (soundPath != null) 'sound_path': soundPath,
       if (isActive != null) 'is_active': isActive,
+      if (completedAt != null) 'completed_at': completedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -914,6 +962,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
     Value<int?>? categoryId,
     Value<String?>? soundPath,
     Value<bool>? isActive,
+    Value<DateTime?>? completedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -926,6 +975,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
       categoryId: categoryId ?? this.categoryId,
       soundPath: soundPath ?? this.soundPath,
       isActive: isActive ?? this.isActive,
+      completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -962,6 +1012,9 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -982,6 +1035,7 @@ class RemindersTableCompanion extends UpdateCompanion<RemindersTableData> {
           ..write('categoryId: $categoryId, ')
           ..write('soundPath: $soundPath, ')
           ..write('isActive: $isActive, ')
+          ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1327,6 +1381,7 @@ typedef $$RemindersTableTableCreateCompanionBuilder =
       Value<int?> categoryId,
       Value<String?> soundPath,
       Value<bool> isActive,
+      Value<DateTime?> completedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -1340,6 +1395,7 @@ typedef $$RemindersTableTableUpdateCompanionBuilder =
       Value<int?> categoryId,
       Value<String?> soundPath,
       Value<bool> isActive,
+      Value<DateTime?> completedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -1425,6 +1481,11 @@ class $$RemindersTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -1503,6 +1564,11 @@ class $$RemindersTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1574,6 +1640,11 @@ class $$RemindersTableTableAnnotationComposer
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
 
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -1642,6 +1713,7 @@ class $$RemindersTableTableTableManager
                 Value<int?> categoryId = const Value.absent(),
                 Value<String?> soundPath = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => RemindersTableCompanion(
@@ -1653,6 +1725,7 @@ class $$RemindersTableTableTableManager
                 categoryId: categoryId,
                 soundPath: soundPath,
                 isActive: isActive,
+                completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -1666,6 +1739,7 @@ class $$RemindersTableTableTableManager
                 Value<int?> categoryId = const Value.absent(),
                 Value<String?> soundPath = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => RemindersTableCompanion.insert(
@@ -1677,6 +1751,7 @@ class $$RemindersTableTableTableManager
                 categoryId: categoryId,
                 soundPath: soundPath,
                 isActive: isActive,
+                completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

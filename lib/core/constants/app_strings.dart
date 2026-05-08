@@ -5,6 +5,7 @@ class AppStrings {
   static const String reminders = 'תזכורות';
   static const String calendar = 'לוח שנה';
   static const String categories = 'קטגוריות';
+  static const String statistics = 'סטטיסטיקות';
   static const String settings = 'הגדרות';
   static const String addReminder = 'הוסף תזכורת';
   static const String editReminder = 'ערוך תזכורת';

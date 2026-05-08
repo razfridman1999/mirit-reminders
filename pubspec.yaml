@@ -2,7 +2,7 @@ name: mirit_reminders
 description: "Local reminder diary app for Mirit."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+11
 
 environment:
   sdk: ^3.11.5
@@ -28,6 +28,10 @@ dependencies:
   audioplayers: ^6.4.0
   shared_preferences: ^2.3.4
   google_fonts: ^6.2.1
+  share_plus: ^10.1.0
+  google_sign_in_all_platforms: ^2.0.2
+  googleapis: ^14.0.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -38,6 +42,29 @@ dev_dependencies:
   riverpod_generator: ^2.6.1
   riverpod_lint: ^2.6.1
   custom_lint: ^0.7.4
+  flutter_launcher_icons: ^0.14.4
+  msix: ^3.16.13
+
+msix_config:
+  display_name: יומן תזכורות
+  publisher_display_name: Mirit Reminders
+  identity_name: com.mirit.reminders.miritreminders
+  msix_version: 1.0.0.0
+  logo_path: assets\icons\app_icon.png
+  capabilities: internetClient
+  architecture: x64
+  store: false
+
+flutter_launcher_icons:
+  image_path: "assets/icons/app_icon.png"
+  android: "ic_launcher"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    icon_size: 256
 
 flutter:
   uses-material-design: true

@@ -10,13 +10,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
           await _insertDefaultCategories();
+        },
+        onUpgrade: (m, from, to) async {
+          // v1 → v2: add the completedAt column. Non-destructive — existing
+          // rows get NULL which the app treats as "not done".
+          if (from < 2) {
+            await m.addColumn(remindersTable, remindersTable.completedAt);
+          }
         },
       );
 

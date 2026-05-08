@@ -45,4 +45,7 @@ class AppColors {
   static const Color surfaceVariantDark = Color(0xFF263545);
   static const Color onBackgroundDark = Color(0xFFE8EFF5);
   static const Color onSurfaceDark = Color(0xFFCDD5DC);
+  static const Color onSurfaceVariantDark = Color(0xFF94A3B0);
+  static const Color dividerDark = Color(0xFF2C3E50);
+  static const Color shadowDark = Color(0x40000000);
 }
